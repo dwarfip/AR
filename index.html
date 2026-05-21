@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>VR Box Simple AR Panel</title>
+  <title>VR Box Pseudo-MR System</title>
+  <!-- Library A-Frame untuk melacak gerakan kepala (Gyroscope) -->
+  <script src="https://aframe.io"></script>
   <style>
     body, html {
       margin: 0;
@@ -12,147 +14,106 @@
       height: 100%;
       overflow: hidden;
       background-color: black;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
 
-    /* Wadah utama */
+    /* Pembagi Layar Fisik (Kiri & Kanan) untuk VR Box */
     .vr-container {
       display: flex;
       width: 100vw;
       height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 10; /* Di atas kamera */
+      pointer-events: none; /* Mengizinkan interaksi tembus ke scene */
     }
 
-    /* Pembagi Layar Kiri & Kanan */
     .view-pane {
       width: 50vw;
       height: 100vh;
-      overflow: hidden;
       position: relative;
+      overflow: hidden;
     }
 
-    /* Umpan Kamera Belakang */
-    video {
+    /* Background Kamera Belakang Nyata (Full Screen di Lapisan Paling Bawah) */
+    #bg-camera {
       position: absolute;
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
       object-fit: cover;
       top: 0;
       left: 0;
       z-index: 1;
     }
-
-    /* PANEL AR (Melayang di atas kamera) */
-    .ar-panel {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%); /* Menaruh panel tepat di tengah mata */
-      width: 60%;
-      height: 40%;
-      background: rgba(0, 40, 80, 0.55); /* Warna biru transparan futuristik */
-      border: 2px solid #00ffcc; /* Bingkai neon gila */
-      border-radius: 12px;
-      padding: 15px;
-      color: #00ffcc;
-      box-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
-      z-index: 10;
-      backdrop-filter: blur(4px); /* Efek kaca buram */
-      box-sizing: border-box;
-    }
-
-    /* Isi di dalam Panel AR */
-    .panel-header {
-      font-size: 14px;
-      font-weight: bold;
-      text-transform: uppercase;
-      border-bottom: 1px solid #00ffcc;
-      padding-bottom: 5px;
-      margin-bottom: 10px;
-      letter-spacing: 2px;
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .panel-body {
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      background-color: #00ffcc;
-      border-radius: 50%;
-      display: inline-block;
-      animation: blink 1s infinite;
-    }
-
-    @keyframes blink {
-      0% { opacity: 0.2; }
-      50% { opacity: 1; }
-      100% { opacity: 0.2; }
-    }
   </style>
 </head>
 <body>
 
-  <div class="vr-container">
-    
-    <!-- TAMPILAN MATA KIRI -->
-    <div class="view-pane" id="left-pane">
-      <video class="cam-feed" autoplay playsinline muted></video>
-      
-      <!-- Panel AR Kiri -->
-      <div class="ar-panel">
-        <div class="panel-header">
-          <span>AR HUD SYSTEM v1.0</span>
-          <span class="status-dot"></span>
-        </div>
-        <div class="panel-body">
-          <p><strong>TARGET:</strong> USER_INTERFACE_PANEL</p>
-          <p><strong>STATUS:</strong> ONLINE</p>
-          <p><strong>MODE:</strong> VR BOX PASSTHROUGH</p>
-        </div>
-      </div>
-    </div>
-    
-    <!-- TAMPILAN MATA KANAN (Identik dengan kiri agar menyatu di otak) -->
-    <div class="view-pane" id="right-pane">
-      <video class="cam-feed" autoplay playsinline muted></video>
-      
-      <!-- Panel AR Kanan -->
-      <div class="ar-panel">
-        <div class="panel-header">
-          <span>AR HUD SYSTEM v1.0</span>
-          <span class="status-dot"></span>
-        </div>
-        <div class="panel-body">
-          <p><strong>TARGET:</strong> USER_INTERFACE_PANEL</p>
-          <p><strong>STATUS:</strong> ONLINE</p>
-          <p><strong>MODE:</strong> VR BOX PASSTHROUGH</p>
-        </div>
-      </div>
-    </div>
+  <!-- 1. LATAR BELAKANG: Kamera Nyata Dunia Asli -->
+  <video id="bg-camera" autoplay playsinline muted></video>
 
+  <!-- 2. GRAFIS 3D: A-Frame yang otomatis membelah layar secara internal -->
+  <!-- Kita buat latar belakang scene 3D menjadi transparan agar kamera asli di bawahnya terlihat -->
+  <a-scene embedded vr-mode-ui="enabled: false" style="position: absolute; width: 100vw; height: 100vh; z-index: 5;">
+    
+    <!-- Kamera Virtual yang membaca Sensor Gyroscope HP -->
+    <!-- Sepasang kamera tiruan (Stereo) otomatis aktif saat masuk mode komparasi -->
+    <a-camera position="0 1.6 0" look-controls="enabled: true"></a-camera>
+
+    <!-- OBJEK MR 1: Panel Informasi yang Terkunci di Koordinat Ruangan -->
+    <!-- Jika Anda menengok ke kanan, panel ini akan bergeser ke kiri (tertinggal di ruangan asli) -->
+    
+      <!-- Bingkai Panel -->
+      <a-plane width="1.5" height="0.9" material="color: #001428; opacity: 0.7; shader: flat; side: double; border: 2px solid #00ffcc;"></a-plane>
+      <!-- Teks di dalam Panel -->
+      <a-text value="MR NODE: ACTIVE\n\nObject locked in real space.\nTurn your head to look away." 
+              color="#00ffcc" align="center" width="2" position="0 0 0.01"></a-text>
+    
+
+    <!-- OBJEK MR 2: Kotak 3D di Sebelah Kanan Anda -->
+    <!-- Anda harus menengok ke kanan sebesar 45 derajat untuk melihat kotak ini -->
+    <a-box position="2 1.6 -2" rotation="0 45 0" color="#ff0055" scale="0.5 0.5 0.5"
+           animation="property: rotation; to: 0 360 0; loop: true; dur: 4000"></a-box>
+
+    <!-- OBJEK MR 3: Bola 3D di Sebelah Kiri Anda -->
+    <a-sphere position="-2 1.6 -2" color="#00ffcc" radius="0.3"></a-sphere>
+
+  </a-scene>
+
+  <!-- 3. TOPENG VR BOX: Memastikan Layar Terbuka dalam Format Split Screen Murni -->
+  <div class="vr-container">
+    <div class="view-pane" id="left-mask"></div>
+    <div class="view-pane" id="right-mask"></div>
   </div>
 
   <script>
-    // Menyalakan Kamera Belakang HP
+    // 1. Jalankan Kamera Belakang HP untuk Background
     navigator.mediaDevices.getUserMedia({
       audio: false,
       video: { facingMode: { ideal: "environment" } }
     })
     .then(function(stream) {
-      const videos = document.querySelectorAll('.cam-feed');
-      videos.forEach(video => {
-        video.srcObject = stream;
-        video.onloadedmetadata = function() {
-          video.play();
-        };
-      });
+      const video = document.getElementById('bg-camera');
+      video.srcObject = stream;
+      video.play();
     })
     .catch(function(err) {
-      alert("Gagal memuat kamera. Pastikan izin kamera aktif di HTTPS.");
+      alert("Akses kamera belakang diperlukan untuk efek Mixed Reality.");
+    });
+
+    // 2. Paksa A-Frame untuk langsung masuk ke Mode Split Screen (Stereoscopic) sejak awal
+    window.addEventListener('load', function () {
+      const sceneEl = document.querySelector('a-scene');
+      if (sceneEl.hasLoaded) {
+        forceStereo();
+      } else {
+        sceneEl.addEventListener('loaded', forceStereo);
+      }
+
+      function forceStereo() {
+        // Trik memaksa WebXR Engine membelah render grafik menjadi Mata Kiri & Kanan
+        sceneEl.enterVR(); 
+      }
     });
   </script>
 
