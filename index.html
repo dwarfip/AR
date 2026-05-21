@@ -3,9 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>VR Box Pseudo-MR System</title>
-  <!-- Library A-Frame untuk melacak gerakan kepala (Gyroscope) -->
-  <script src="https://aframe.io"></script>
+  <title>VR Box Stereoscopic MR</title>
   <style>
     body, html {
       margin: 0;
@@ -14,107 +12,158 @@
       height: 100%;
       overflow: hidden;
       background-color: black;
+      font-family: monospace;
     }
 
-    /* Pembagi Layar Fisik (Kiri & Kanan) untuk VR Box */
+    /* Container utama pembelah layar */
     .vr-container {
       display: flex;
       width: 100vw;
       height: 100vh;
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 10; /* Di atas kamera */
-      pointer-events: none; /* Mengizinkan interaksi tembus ke scene */
     }
 
+    /* Membagi layar menjadi 2 bagian presisi (Kiri & Kanan) */
     .view-pane {
       width: 50vw;
       height: 100vh;
-      position: relative;
       overflow: hidden;
+      position: relative;
     }
 
-    /* Background Kamera Belakang Nyata (Full Screen di Lapisan Paling Bawah) */
-    #bg-camera {
+    /* Video Kamera Belakang sebagai Passthrough */
+    video {
       position: absolute;
-      width: 100vw;
-      height: 100vh;
+      width: 100%;
+      height: 100%;
       object-fit: cover;
       top: 0;
       left: 0;
       z-index: 1;
     }
+
+    /* KANVAS GRAFIS 3D MR (Melayang di atas kamera) */
+    /* Menggunakan sistem 3D CSS Renderer untuk mengunci objek di ruang nyata */
+    .space-3d {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      z-index: 5;
+      perspective: 600px; /* Memberikan efek kedalaman 3D */
+    }
+
+    /* Objek Panel AR yang akan bergerak berlawanan dengan rotasi kepala */
+    .mr-panel {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 260px;
+      height: 160px;
+      margin-left: -130px; /* Menaruh tepat di titik tengah */
+      margin-top: -80px;
+      background: rgba(0, 20, 40, 0.75);
+      border: 3px solid #00ffcc;
+      border-radius: 8px;
+      padding: 12px;
+      color: #00ffcc;
+      box-shadow: 0 0 15px rgba(0, 255, 204, 0.5);
+      box-sizing: border-box;
+      transform-style: preserve-3d;
+      will-change: transform;
+      transition: transform 0.05s linear; /* Membuat gerakan halus */
+    }
+
+    .panel-header {
+      font-size: 12px;
+      font-weight: bold;
+      border-bottom: 1px solid #00ffcc;
+      padding-bottom: 5px;
+      margin-bottom: 10px;
+    }
+
+    .panel-body {
+      font-size: 11px;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
 
-  <!-- 1. LATAR BELAKANG: Kamera Nyata Dunia Asli -->
-  <video id="bg-camera" autoplay playsinline muted></video>
-
-  <!-- 2. GRAFIS 3D: A-Frame yang otomatis membelah layar secara internal -->
-  <!-- Kita buat latar belakang scene 3D menjadi transparan agar kamera asli di bawahnya terlihat -->
-  <a-scene embedded vr-mode-ui="enabled: false" style="position: absolute; width: 100vw; height: 100vh; z-index: 5;">
-    
-    <!-- Kamera Virtual yang membaca Sensor Gyroscope HP -->
-    <!-- Sepasang kamera tiruan (Stereo) otomatis aktif saat masuk mode komparasi -->
-    <a-camera position="0 1.6 0" look-controls="enabled: true"></a-camera>
-
-    <!-- OBJEK MR 1: Panel Informasi yang Terkunci di Koordinat Ruangan -->
-    <!-- Jika Anda menengok ke kanan, panel ini akan bergeser ke kiri (tertinggal di ruangan asli) -->
-    
-      <!-- Bingkai Panel -->
-      <a-plane width="1.5" height="0.9" material="color: #001428; opacity: 0.7; shader: flat; side: double; border: 2px solid #00ffcc;"></a-plane>
-      <!-- Teks di dalam Panel -->
-      <a-text value="MR NODE: ACTIVE\n\nObject locked in real space.\nTurn your head to look away." 
-              color="#00ffcc" align="center" width="2" position="0 0 0.01"></a-text>
-    
-
-    <!-- OBJEK MR 2: Kotak 3D di Sebelah Kanan Anda -->
-    <!-- Anda harus menengok ke kanan sebesar 45 derajat untuk melihat kotak ini -->
-    <a-box position="2 1.6 -2" rotation="0 45 0" color="#ff0055" scale="0.5 0.5 0.5"
-           animation="property: rotation; to: 0 360 0; loop: true; dur: 4000"></a-box>
-
-    <!-- OBJEK MR 3: Bola 3D di Sebelah Kiri Anda -->
-    <a-sphere position="-2 1.6 -2" color="#00ffcc" radius="0.3"></a-sphere>
-
-  </a-scene>
-
-  <!-- 3. TOPENG VR BOX: Memastikan Layar Terbuka dalam Format Split Screen Murni -->
+  <!-- Struktur Dua Belah Layar (Stereoskopik) -->
   <div class="vr-container">
-    <div class="view-pane" id="left-mask"></div>
-    <div class="view-pane" id="right-mask"></div>
+    
+    <!-- MATA KIRI -->
+    <div class="view-pane" id="left-pane">
+      <video class="cam-feed" autoplay playsinline muted></video>
+      <div class="space-3d">
+        <div class="mr-panel" id="panel-left">
+          <div class="panel-header">MR SYSTEM: MATA KIRI</div>
+          <div class="panel-body">
+            <p>> GYRO: LATCHED</p>
+            <p>> PASSTHROUGH: TRUE</p>
+            <p>> STATUS: LOCKED IN SPACE</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- MATA KANAN (Identik dengan kiri untuk ilusi 3D di otak) -->
+    <div class="view-pane" id="right-pane">
+      <video class="cam-feed" autoplay playsinline muted></video>
+      <div class="space-3d">
+        <div class="mr-panel" id="panel-right">
+          <div class="panel-header">MR SYSTEM: MATA KANAN</div>
+          <div class="panel-body">
+            <p>> GYRO: LATCHED</p>
+            <p>> PASSTHROUGH: TRUE</p>
+            <p>> STATUS: LOCKED IN SPACE</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script>
-    // 1. Jalankan Kamera Belakang HP untuk Background
+    // 1. Mengaktifkan Kamera Belakang ke Kedua Belah Layar
     navigator.mediaDevices.getUserMedia({
       audio: false,
       video: { facingMode: { ideal: "environment" } }
     })
     .then(function(stream) {
-      const video = document.getElementById('bg-camera');
-      video.srcObject = stream;
-      video.play();
+      const videos = document.querySelectorAll('.cam-feed');
+      videos.forEach(video => {
+        video.srcObject = stream;
+        video.play();
+      });
     })
     .catch(function(err) {
-      alert("Akses kamera belakang diperlukan untuk efek Mixed Reality.");
+      alert("Akses kamera ditolak. Berikan izin di Chrome.");
     });
 
-    // 2. Paksa A-Frame untuk langsung masuk ke Mode Split Screen (Stereoscopic) sejak awal
-    window.addEventListener('load', function () {
-      const sceneEl = document.querySelector('a-scene');
-      if (sceneEl.hasLoaded) {
-        forceStereo();
-      } else {
-        sceneEl.addEventListener('loaded', forceStereo);
-      }
+    // 2. LOGIKA JANGKAR MR: Membaca Sensor Gyroscope HP
+    const panelLeft = document.getElementById('panel-left');
+    const panelRight = document.getElementById('panel-right');
 
-      function forceStereo() {
-        // Trik memaksa WebXR Engine membelah render grafik menjadi Mata Kiri & Kanan
-        sceneEl.enterVR(); 
+    window.addEventListener('deviceorientation', function(event) {
+      // alpha: perputaran kepala tengok kanan/kiri (0 sampai 360 derajat)
+      // beta: dongakan kepala dongak atas/bawah
+      let alpha = event.alpha;
+      let beta = event.beta;
+
+      if (alpha !== null && beta !== null) {
+        // Trik Matematika MR: 
+        // Saat kepala Anda menengok ke KANAN (alpha mengecil), objek kita geser ke KIRI (minus)
+        // Ini menciptakan ilusi bahwa panel digital tertinggal diam di ruang nyata!
+        let xOffset = (alpha * 3); // Pengali sensitivitas gerakan horizontal
+        let yOffset = ((beta - 45) * 3); // Pengali sensitivitas gerakan vertikal (diasumsikan HP miring 45 derajat)
+
+        // Terapkan posisi baru secara bersamaan ke mata kiri dan kanan
+        panelLeft.style.transform = `translate(${-xOffset}px, ${yOffset}px)`;
+        panelRight.style.transform = `translate(${-xOffset}px, ${yOffset}px)`;
       }
-    });
+    }, true);
   </script>
 
 </body>
