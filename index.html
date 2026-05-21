@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>VR Box Dual Screen Camera Fix</title>
+  <title>VR Box Simple AR Panel</title>
   <style>
     body, html {
       margin: 0;
@@ -12,16 +12,17 @@
       height: 100%;
       overflow: hidden;
       background-color: black;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
 
-    /* Wadah utama pembelah layar */
+    /* Wadah utama */
     .vr-container {
       display: flex;
       width: 100vw;
       height: 100vh;
     }
 
-    /* Membagi layar menjadi 2 bagian presisi (Kiri & Kanan) */
+    /* Pembagi Layar Kiri & Kanan */
     .view-pane {
       width: 50vw;
       height: 100vh;
@@ -29,19 +30,7 @@
       position: relative;
     }
 
-    /* Menjaga garis pembatas tengah agar mata fokus */
-    .view-pane::after {
-      content: "";
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 2px;
-      background: rgba(255, 255, 255, 0.2);
-    }
-    #left-pane::after { right: 0; }
-    #right-pane::after { left: 0; }
-
-    /* Memaksa elemen video dan objek mengikuti porsi layar VR Box */
+    /* Umpan Kamera Belakang */
     video {
       position: absolute;
       width: 100%;
@@ -49,57 +38,111 @@
       object-fit: cover;
       top: 0;
       left: 0;
+      z-index: 1;
     }
 
-    /* Efek Target AR (Kotak/Target Bidik) di tengah-tengah pandangan */
-    .ar-target {
+    /* PANEL AR (Melayang di atas kamera) */
+    .ar-panel {
       position: absolute;
       top: 50%;
       left: 50%;
-      width: 40px;
-      height: 40px;
-      border: 3px solid #ff0055;
-      border-radius: 6px;
-      transform: translate(-50%, -50%) rotate(45deg);
-      box-shadow: 0 0 10px #ff0055;
-      animation: pulse 2s infinite;
+      transform: translate(-50%, -50%); /* Menaruh panel tepat di tengah mata */
+      width: 60%;
+      height: 40%;
+      background: rgba(0, 40, 80, 0.55); /* Warna biru transparan futuristik */
+      border: 2px solid #00ffcc; /* Bingkai neon gila */
+      border-radius: 12px;
+      padding: 15px;
+      color: #00ffcc;
+      box-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
       z-index: 10;
+      backdrop-filter: blur(4px); /* Efek kaca buram */
+      box-sizing: border-box;
     }
 
-    @keyframes pulse {
-      0% { transform: translate(-50%, -50%) rotate(45deg) scale(0.9); opacity: 0.6; }
-      50% { transform: translate(-50%, -50%) rotate(45deg) scale(1.1); opacity: 1; }
-      100% { transform: translate(-50%, -50%) rotate(45deg) scale(0.9); opacity: 0.6; }
+    /* Isi di dalam Panel AR */
+    .panel-header {
+      font-size: 14px;
+      font-weight: bold;
+      text-transform: uppercase;
+      border-bottom: 1px solid #00ffcc;
+      padding-bottom: 5px;
+      margin-bottom: 10px;
+      letter-spacing: 2px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .panel-body {
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #00ffcc;
+      border-radius: 50%;
+      display: inline-block;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0% { opacity: 0.2; }
+      50% { opacity: 1; }
+      100% { opacity: 0.2; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Struktur Dual Tampilan Mata untuk VR Box -->
   <div class="vr-container">
     
-    <!-- MATA KIRI -->
+    <!-- TAMPILAN MATA KIRI -->
     <div class="view-pane" id="left-pane">
       <video class="cam-feed" autoplay playsinline muted></video>
-      <div class="ar-target"></div>
+      
+      <!-- Panel AR Kiri -->
+      <div class="ar-panel">
+        <div class="panel-header">
+          <span>AR HUD SYSTEM v1.0</span>
+          <span class="status-dot"></span>
+        </div>
+        <div class="panel-body">
+          <p><strong>TARGET:</strong> USER_INTERFACE_PANEL</p>
+          <p><strong>STATUS:</strong> ONLINE</p>
+          <p><strong>MODE:</strong> VR BOX PASSTHROUGH</p>
+        </div>
+      </div>
     </div>
     
-    <!-- MATA KANAN -->
+    <!-- TAMPILAN MATA KANAN (Identik dengan kiri agar menyatu di otak) -->
     <div class="view-pane" id="right-pane">
       <video class="cam-feed" autoplay playsinline muted></video>
-      <div class="ar-target"></div>
+      
+      <!-- Panel AR Kanan -->
+      <div class="ar-panel">
+        <div class="panel-header">
+          <span>AR HUD SYSTEM v1.0</span>
+          <span class="status-dot"></span>
+        </div>
+        <div class="panel-body">
+          <p><strong>TARGET:</strong> USER_INTERFACE_PANEL</p>
+          <p><strong>STATUS:</strong> ONLINE</p>
+          <p><strong>MODE:</strong> VR BOX PASSTHROUGH</p>
+        </div>
+      </div>
     </div>
 
   </div>
 
   <script>
-    // Meminta akses satu aliran kamera belakang
+    // Menyalakan Kamera Belakang HP
     navigator.mediaDevices.getUserMedia({
       audio: false,
       video: { facingMode: { ideal: "environment" } }
     })
     .then(function(stream) {
-      // Mengkloning satu aliran kamera ke dua elemen video (kiri & kanan) sekaligus
       const videos = document.querySelectorAll('.cam-feed');
       videos.forEach(video => {
         video.srcObject = stream;
@@ -109,7 +152,7 @@
       });
     })
     .catch(function(err) {
-      alert("Akses kamera ditolak atau tidak didukung di HTTPS ini. Periksa izin Chrome Anda.");
+      alert("Gagal memuat kamera. Pastikan izin kamera aktif di HTTPS.");
     });
   </script>
 
