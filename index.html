@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>VR Box 6DoF Spatial Lock</title>
+  <title>VR Box 6DoF Stable Spatial Lock</title>
   <style>
     body, html {
       margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #030508; font-family: monospace; color: #00ffcc;
@@ -11,13 +11,12 @@
     .vr-container { display: flex; width: 100vw; height: 100vh; }
     .view-pane { width: 50vw; height: 100vh; overflow: hidden; position: relative; background: radial-gradient(circle, #0f1c2b 0%, #030508 100%); }
     
-    /* Ruang hampa 3D virtual */
     .virtual-space {
       position: absolute; width: 100%; height: 100%; top: 0; left: 0;
       perspective: 500px; display: flex; justify-content: center; align-items: center;
     }
 
-    /* KOTAK DIGITAL YANG TERKUNCI DI RUANGAN (Spatial Anchor) */
+    /* KOTAK VR DENGAN SISTEM STABILISASI SKALA */
     .spatial-anchor {
       position: relative;
       width: 120px; height: 120px;
@@ -26,7 +25,6 @@
       transform: translate3d(0px, 0px, 0px) scale3d(1, 1, 1);
     }
 
-    /* Sisi-sisi Kubus VR */
     .face {
       position: absolute; width: 120px; height: 120px;
       border: 3px solid #00ffcc; background: rgba(0, 255, 204, 0.1);
@@ -47,26 +45,26 @@
 </head>
 <body>
 
-  <!-- Kamera belakang tersembunyi sebagai sensor jarak (6DoF) -->
+  <!-- Kamera belakang sebagai sensor 6DoF -->
   <video id="hidden-video" autoplay playsinline muted></video>
 
   <div class="vr-container">
     <!-- LAYAR MATA KIRI -->
     <div class="view-pane">
-      <div class="hud">SPATIAL_LOCK: TRUE<br>GYRO_X: <span id="gyro-x">0</span>°<br>Z-DEPTH: <span class="depth-val">1.0</span></div>
+      <div class="hud">SPATIAL_LOCK: ACTIVE<br>SCALE_Z: <span class="depth-val">1.00</span><br>DIRECTION: <span id="dir-val">STABLE</span></div>
       <div class="virtual-space">
         <div class="spatial-anchor" id="anchor-left">
-          <div class="face front">LOCKED</div><div class="face back">OBJECT</div><div class="face right">MR</div><div class="face left">SPACE</div><div class="face top">HTML</div><div class="face bottom">PWA</div>
+          <div class="face front">6DoF</div><div class="face back">STABLE</div><div class="face right">HTML</div><div class="face left">PWA</div><div class="face top">BOX</div><div class="face bottom">SYSTEM</div>
         </div>
       </div>
     </div>
     
     <!-- LAYAR MATA KANAN -->
     <div class="view-pane">
-      <div class="hud">SPATIAL_LOCK: TRUE<br>GYRO_X: <span id="gyro-x-r">0</span>°<br>Z-DEPTH: <span class="depth-val">1.0</span></div>
+      <div class="hud">SPATIAL_LOCK: ACTIVE<br>SCALE_Z: <span class="depth-val">1.00</span><br>DIRECTION: <span id="dir-val-r">STABLE</span></div>
       <div class="virtual-space">
         <div class="spatial-anchor" id="anchor-right">
-          <div class="face front">LOCKED</div><div class="face back">OBJECT</div><div class="face right">MR</div><div class="face left">SPACE</div><div class="face top">HTML</div><div class="face bottom">PWA</div>
+          <div class="face front">6DoF</div><div class="face back">STABLE</div><div class="face right">HTML</div><div class="face left">PWA</div><div class="face top">BOX</div><div class="face bottom">SYSTEM</div>
         </div>
       </div>
     </div>
@@ -82,30 +80,28 @@
     const anchorLeft = document.getElementById('anchor-left');
     const anchorRight = document.getElementById('anchor-right');
     const depthTexts = document.querySelectorAll('.depth-val');
-    const gyroTextL = document.getElementById('gyro-x');
-    const gyroTextR = document.getElementById('gyro-x-r');
+    const dirTextL = document.getElementById('dir-val');
+    const dirTextR = document.getElementById('dir-val-r');
 
-    let prevBrightness = 0;
-    let scaleEffect = 1.0;
+    let baseBrightness = null;
+    let currentScale = 1.0;
     let currentAlpha = 0;
     let currentBeta = 0;
 
-    // 1. Hidupkan Sensor Kamera Belakang untuk 6DoF (Maju/Mundur)
+    // 1. Hidupkan Kamera Belakang
     navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" } } })
     .then(stream => { video.srcObject = stream; })
     .catch(() => { alert("Izin kamera diperlukan untuk sensor 6DoF."); });
 
-    // 2. Baca Sensor Gyroscope HP untuk Kunci Ruangan (Tengok Kiri/Kanan/Atas/Bawah)
+    // 2. Ambil data Gyroscope
     window.addEventListener('deviceorientation', (event) => {
       if (event.alpha !== null && event.beta !== null) {
-        currentAlpha = event.alpha; // Mengikuti rotasi horizontal
-        currentBeta = event.beta;   // Mengikuti rotasi vertikal
-        gyroTextL.innerText = Math.round(currentAlpha);
-        gyroTextR.innerText = Math.round(currentAlpha);
+        currentAlpha = event.alpha;
+        currentBeta = event.beta;
       }
     }, true);
 
-    // 3. Loop Rendering Utama (60 FPS) - Menggabungkan Sensor Kamera & Gyro
+    // 3. Loop Analisis Gerak (60 FPS) dengan Logika Maju-Mundur Konvensional
     setInterval(() => {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -118,24 +114,43 @@
         }
         let avgBrightness = totalBrightness / (data.length / 4);
         
-        // Logika 6DoF Maju-Mundur lewat kamera
-        let diff = Math.abs(avgBrightness - prevBrightness);
-        if (diff > 1.5) {
-          scaleEffect = 1.0 + (diff * 0.06);
-          if (scaleEffect > 2.0) scaleEffect = 2.0;
+        // Menentukan kecerahan awal saat pertama kali aplikasi dimuat
+        if (baseBrightness === null) {
+          baseBrightness = avgBrightness;
         }
-        prevBrightness = avgBrightness;
-        depthTexts.forEach(t => t.innerText = scaleEffect.toFixed(1));
+
+        // --- LOGIKA DETEKSI 6DOF DUA ARAH STABIL ---
+        // Kita hitung selisih dari nilai dasar (bukan nilai frame sebelumnya)
+        let delta = avgBrightness - baseBrightness;
+
+        if (delta > 2) {
+          // Mendeteksi gerakan MAJU (Kamera menangkap lebih banyak cahaya/benda mendekat)
+          currentScale += 0.02;
+          dirTextL.innerText = "MOVING_FORWARD";
+          dirTextR.innerText = "MOVING_FORWARD";
+        } else if (delta < -2) {
+          // Mendeteksi gerakan MUNDUR (Kamera menjauh dari objek)
+          currentScale -= 0.02;
+          dirTextL.innerText = "MOVING_BACKWARD";
+          dirTextR.innerText = "MOVING_BACKWARD";
+        } else {
+          // Posisi Diam / Stabil, kita kembalikan skala perlahan ke posisi normal (1.0) demi kenyamanan mata
+          currentScale += (1.0 - currentScale) * 0.05;
+          dirTextL.innerText = "STABLE";
+          dirTextR.innerText = "STABLE";
+        }
+
+        // Batasi skala agar objek tidak terlalu besar dan tidak mengecil sampai hilang (0)
+        currentScale = Math.max(0.6, Math.min(1.8, currentScale));
+        depthTexts.forEach(t => t.innerText = currentScale.toFixed(2));
       }
 
-      // Rumus Pembalik Kunci Ruangan (Spatial Lock):
-      // Kita kalikan minus agar objek bergerak berlawanan arah dengan tengokan kepala Anda
+      // Hitung koordinat kunci ruangGyroscope
       let xLock = -(currentAlpha * 2.5); 
-      let yLock = ((currentBeta - 45) * 2.5); // 45 derajat diasumsikan sudut HP saat landscape
+      let yLock = ((currentBeta - 45) * 2.5);
 
-      // Terapkan translasi koordinat ruang dan skala 6DoF secara bersamaan
-      // Ditambahkan sedikit putaran konstan lambat agar objek tetap terlihat dinamis secara 3D
-      const transformMatrix = `translate3d(${xLock}px, ${yLock}px, 0px) scale3d(${scaleEffect}, ${scaleEffect}, ${scaleEffect}) rotateX(${currentBeta}deg) rotateY(${xLock}deg)`;
+      // Terapkan matriks transformasi 3D yang sudah distabilkan
+      const transformMatrix = `translate3d(${xLock}px, ${yLock}px, 0px) scale3d(${currentScale}, ${currentScale}, ${currentScale}) rotateX(${currentBeta}deg) rotateY(${xLock}deg)`;
       
       anchorLeft.style.transform = transformMatrix;
       anchorRight.style.transform = transformMatrix;
