@@ -3,141 +3,144 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>VR Box AR HUD Standard</title>
+  <title>VR Box 6DoF Spatial Lock</title>
   <style>
     body, html {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background-color: black;
-      font-family: monospace;
+      margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #030508; font-family: monospace; color: #00ffcc;
+    }
+    .vr-container { display: flex; width: 100vw; height: 100vh; }
+    .view-pane { width: 50vw; height: 100vh; overflow: hidden; position: relative; background: radial-gradient(circle, #0f1c2b 0%, #030508 100%); }
+    
+    /* Ruang hampa 3D virtual */
+    .virtual-space {
+      position: absolute; width: 100%; height: 100%; top: 0; left: 0;
+      perspective: 500px; display: flex; justify-content: center; align-items: center;
     }
 
-    /* Wadah utama pembelah layar */
-    .vr-container {
-      display: flex;
-      width: 100vw;
-      height: 100vh;
-    }
-
-    /* Membagi layar menjadi 2 bagian presisi (Kiri & Kanan) */
-    .view-pane {
-      width: 50vw;
-      height: 100vh;
-      overflow: hidden;
+    /* KOTAK DIGITAL YANG TERKUNCI DI RUANGAN (Spatial Anchor) */
+    .spatial-anchor {
       position: relative;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      width: 120px; height: 120px;
+      transform-style: preserve-3d;
+      will-change: transform;
+      transform: translate3d(0px, 0px, 0px) scale3d(1, 1, 1);
     }
 
-    /* Umpan Kamera Belakang sebagai Passthrough */
-    video {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      top: 0;
-      left: 0;
-      z-index: 1;
+    /* Sisi-sisi Kubus VR */
+    .face {
+      position: absolute; width: 120px; height: 120px;
+      border: 3px solid #00ffcc; background: rgba(0, 255, 204, 0.1);
+      box-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold; font-size: 13px; text-shadow: 0 0 5px #00ffcc;
     }
+    .front  { transform: rotateY(  0deg) translateZ(60px); background: rgba(255, 0, 85, 0.15); border-color: #ff0055; box-shadow: 0 0 15px rgba(255, 0, 85, 0.4); }
+    .back   { transform: rotateY(180deg) translateZ(60px); }
+    .right  { transform: rotateY( 90deg) translateZ(60px); }
+    .left   { transform: rotateY(-90deg) translateZ(60px); }
+    .top    { transform: rotateX( 90deg) translateZ(60px); }
+    .bottom { transform: rotateX(-90deg) translateZ(60px); }
 
-    /* PANEL AR (Menempel kokoh di atas tengah layar) */
-    .ar-panel {
-      position: relative;
-      width: 75%;
-      height: 45%;
-      background: rgba(0, 20, 40, 0.7); /* Biru gelap transparan */
-      border: 3px solid #00ffcc; /* Bingkai hijau neon */
-      border-radius: 8px;
-      padding: 12px;
-      color: #00ffcc;
-      box-shadow: 0 0 15px rgba(0, 255, 204, 0.5);
-      z-index: 9999; /* Memaksa panel berada di lapisan paling atas */
-      box-sizing: border-box;
-    }
-
-    .panel-header {
-      font-size: 12px;
-      font-weight: bold;
-      border-bottom: 1px solid #00ffcc;
-      padding-bottom: 4px;
-      margin-bottom: 8px;
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .panel-body {
-      font-size: 11px;
-      line-height: 1.4;
-    }
-
-    /* Efek teks berkedip untuk indikator online */
-    .status-blink {
-      animation: blinker 1s linear infinite;
-    }
-    @keyframes blinker {
-      50% { opacity: 0; }
-    }
+    .hud { position: absolute; top: 20px; left: 20px; font-size: 10px; z-index: 10; line-height: 1.5; }
+    #hidden-video { position: absolute; width: 100px; height: 100px; opacity: 0; pointer-events: none; z-index: -1; }
   </style>
 </head>
 <body>
 
-  <div class="vr-container">
-    
-    <!-- MATA KIRI -->
-    <div class="view-pane">
-      <video class="cam-feed" autoplay playsinline muted></video>
-      <div class="ar-panel">
-        <div class="panel-header">
-          <span>AR HUD: LEFT_EYE</span>
-          <span class="status-blink">[● ONLINE]</span>
-        </div>
-        <div class="panel-body">
-          <p>> SYSTEM: CONNECTED</p>
-          <p>> CAMERA: REAR_ACTIVE</p>
-          <p>> MODE: STEREOSCOPIC</p>
-        </div>
-      </div>
-    </div>
-    
-    <!-- MATA KANAN (Identik agar nyaman menyatu di otak) -->
-    <div class="view-pane">
-      <video class="cam-feed" autoplay playsinline muted></video>
-      <div class="ar-panel">
-        <div class="panel-header">
-          <span>AR HUD: RIGHT_EYE</span>
-          <span class="status-blink">[● ONLINE]</span>
-        </div>
-        <div class="panel-body">
-          <p>> SYSTEM: CONNECTED</p>
-          <p>> CAMERA: REAR_ACTIVE</p>
-          <p>> MODE: STEREOSCOPIC</p>
-        </div>
-      </div>
-    </div>
+  <!-- Kamera belakang tersembunyi sebagai sensor jarak (6DoF) -->
+  <video id="hidden-video" autoplay playsinline muted></video>
 
+  <div class="vr-container">
+    <!-- LAYAR MATA KIRI -->
+    <div class="view-pane">
+      <div class="hud">SPATIAL_LOCK: TRUE<br>GYRO_X: <span id="gyro-x">0</span>°<br>Z-DEPTH: <span class="depth-val">1.0</span></div>
+      <div class="virtual-space">
+        <div class="spatial-anchor" id="anchor-left">
+          <div class="face front">LOCKED</div><div class="face back">OBJECT</div><div class="face right">MR</div><div class="face left">SPACE</div><div class="face top">HTML</div><div class="face bottom">PWA</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- LAYAR MATA KANAN -->
+    <div class="view-pane">
+      <div class="hud">SPATIAL_LOCK: TRUE<br>GYRO_X: <span id="gyro-x-r">0</span>°<br>Z-DEPTH: <span class="depth-val">1.0</span></div>
+      <div class="virtual-space">
+        <div class="spatial-anchor" id="anchor-right">
+          <div class="face front">LOCKED</div><div class="face back">OBJECT</div><div class="face right">MR</div><div class="face left">SPACE</div><div class="face top">HTML</div><div class="face bottom">PWA</div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <script>
-    // Meminta izin kamera belakang HP
-    navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { facingMode: { ideal: "environment" } }
-    })
-    .then(function(stream) {
-      const videos = document.querySelectorAll('.cam-feed');
-      videos.forEach(video => {
-        video.srcObject = stream;
-        video.play();
-      });
-    })
-    .catch(function(err) {
-      alert("Nyalakan izin kamera di Chrome.");
-    });
-  </script>
+  <canvas id="analyzer-canvas" width="40" height="30" style="display:none;"></canvas>
 
+  <script>
+    const video = document.getElementById('hidden-video');
+    const canvas = document.getElementById('analyzer-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    const anchorLeft = document.getElementById('anchor-left');
+    const anchorRight = document.getElementById('anchor-right');
+    const depthTexts = document.querySelectorAll('.depth-val');
+    const gyroTextL = document.getElementById('gyro-x');
+    const gyroTextR = document.getElementById('gyro-x-r');
+
+    let prevBrightness = 0;
+    let scaleEffect = 1.0;
+    let currentAlpha = 0;
+    let currentBeta = 0;
+
+    // 1. Hidupkan Sensor Kamera Belakang untuk 6DoF (Maju/Mundur)
+    navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" } } })
+    .then(stream => { video.srcObject = stream; })
+    .catch(() => { alert("Izin kamera diperlukan untuk sensor 6DoF."); });
+
+    // 2. Baca Sensor Gyroscope HP untuk Kunci Ruangan (Tengok Kiri/Kanan/Atas/Bawah)
+    window.addEventListener('deviceorientation', (event) => {
+      if (event.alpha !== null && event.beta !== null) {
+        currentAlpha = event.alpha; // Mengikuti rotasi horizontal
+        currentBeta = event.beta;   // Mengikuti rotasi vertikal
+        gyroTextL.innerText = Math.round(currentAlpha);
+        gyroTextR.innerText = Math.round(currentAlpha);
+      }
+    }, true);
+
+    // 3. Loop Rendering Utama (60 FPS) - Menggabungkan Sensor Kamera & Gyro
+    setInterval(() => {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+
+        let totalBrightness = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          totalBrightness += (data[i] + data[i+1] + data[i+2]) / 3;
+        }
+        let avgBrightness = totalBrightness / (data.length / 4);
+        
+        // Logika 6DoF Maju-Mundur lewat kamera
+        let diff = Math.abs(avgBrightness - prevBrightness);
+        if (diff > 1.5) {
+          scaleEffect = 1.0 + (diff * 0.06);
+          if (scaleEffect > 2.0) scaleEffect = 2.0;
+        }
+        prevBrightness = avgBrightness;
+        depthTexts.forEach(t => t.innerText = scaleEffect.toFixed(1));
+      }
+
+      // Rumus Pembalik Kunci Ruangan (Spatial Lock):
+      // Kita kalikan minus agar objek bergerak berlawanan arah dengan tengokan kepala Anda
+      let xLock = -(currentAlpha * 2.5); 
+      let yLock = ((currentBeta - 45) * 2.5); // 45 derajat diasumsikan sudut HP saat landscape
+
+      // Terapkan translasi koordinat ruang dan skala 6DoF secara bersamaan
+      // Ditambahkan sedikit putaran konstan lambat agar objek tetap terlihat dinamis secara 3D
+      const transformMatrix = `translate3d(${xLock}px, ${yLock}px, 0px) scale3d(${scaleEffect}, ${scaleEffect}, ${scaleEffect}) rotateX(${currentBeta}deg) rotateY(${xLock}deg)`;
+      
+      anchorLeft.style.transform = transformMatrix;
+      anchorRight.style.transform = transformMatrix;
+
+    }, 1000 / 60);
+  </script>
 </body>
 </html>
