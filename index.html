@@ -1,107 +1,57 @@
-<!DOCTYPE html>
+        <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>VR Box 6DoF Stable Spatial Lock</title>
-  <style>
-    body, html {
-      margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #030508; font-family: monospace; color: #00ffcc;
-    }
-    .vr-container { display: flex; width: 100vw; height: 100vh; }
-    .view-pane { width: 50vw; height: 100vh; overflow: hidden; position: relative; background: radial-gradient(circle, #0f1c2b 0%, #030508 100%); }
-    
-    .virtual-space {
-      position: absolute; width: 100%; height: 100%; top: 0; left: 0;
-      perspective: 500px; display: flex; justify-content: center; align-items: center;
-    }
-
-    /* KOTAK VR DENGAN SISTEM STABILISASI SKALA */
-    .spatial-anchor {
-      position: relative;
-      width: 120px; height: 120px;
-      transform-style: preserve-3d;
-      will-change: transform;
-      transform: translate3d(0px, 0px, 0px) scale3d(1, 1, 1);
-    }
-
-    .face {
-      position: absolute; width: 120px; height: 120px;
-      border: 3px solid #00ffcc; background: rgba(0, 255, 204, 0.1);
-      box-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: bold; font-size: 13px; text-shadow: 0 0 5px #00ffcc;
-    }
-    .front  { transform: rotateY(  0deg) translateZ(60px); background: rgba(255, 0, 85, 0.15); border-color: #ff0055; box-shadow: 0 0 15px rgba(255, 0, 85, 0.4); }
-    .back   { transform: rotateY(180deg) translateZ(60px); }
-    .right  { transform: rotateY( 90deg) translateZ(60px); }
-    .left   { transform: rotateY(-90deg) translateZ(60px); }
-    .top    { transform: rotateX( 90deg) translateZ(60px); }
-    .bottom { transform: rotateX(-90deg) translateZ(60px); }
-
-    .hud { position: absolute; top: 20px; left: 20px; font-size: 10px; z-index: 10; line-height: 1.5; }
-    #hidden-video { position: absolute; width: 100px; height: 100px; opacity: 0; pointer-events: none; z-index: -1; }
-  </style>
+  <title>VR Box Pure VR 6DoF A-Frame</title>
+  <!-- Memuat library A-Frame terbaru -->
+  <script src="https://aframe.io"></script>
 </head>
-<body>
+<body style="margin: 0; overflow: hidden;">
 
-  <!-- Kamera belakang sebagai sensor 6DoF -->
-  <video id="hidden-video" autoplay playsinline muted></video>
-
-  <div class="vr-container">
-    <!-- LAYAR MATA KIRI -->
-    <div class="view-pane">
-      <div class="hud">SPATIAL_LOCK: ACTIVE<br>SCALE_Z: <span class="depth-val">1.00</span><br>DIRECTION: <span id="dir-val">STABLE</span></div>
-      <div class="virtual-space">
-        <div class="spatial-anchor" id="anchor-left">
-          <div class="face front">6DoF</div><div class="face back">STABLE</div><div class="face right">HTML</div><div class="face left">PWA</div><div class="face top">BOX</div><div class="face bottom">SYSTEM</div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- LAYAR MATA KANAN -->
-    <div class="view-pane">
-      <div class="hud">SPATIAL_LOCK: ACTIVE<br>SCALE_Z: <span class="depth-val">1.00</span><br>DIRECTION: <span id="dir-val-r">STABLE</span></div>
-      <div class="virtual-space">
-        <div class="spatial-anchor" id="anchor-right">
-          <div class="face front">6DoF</div><div class="face back">STABLE</div><div class="face right">HTML</div><div class="face left">PWA</div><div class="face top">BOX</div><div class="face bottom">SYSTEM</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
+  <!-- Kamera belakang disembunyikan, murni sebagai sensor gerak -->
+  <video id="hidden-video" autoplay playsinline muted style="position:absolute; width:100px; height:100px; opacity:0; z-index:-1;"></video>
   <canvas id="analyzer-canvas" width="40" height="30" style="display:none;"></canvas>
+
+  <!-- Scene VR Murni (Latar belakang gelap, bukan passthrough) -->
+  <!-- cardboardModeEnabled memaksa tampilan terbelah dua untuk VR Box saat tombol kacamata ditekan -->
+  <a-scene vr-mode-ui="cardboardModeEnabled: true" background="color: #05070a">
+    
+    <!-- Kamera Utama A-Frame: Otomatis membaca Gyroscope HP -->
+    <a-camera id="main-cam" position="0 1.6 0" look-controls="enabled: true"></a-camera>
+
+    <!-- OBJEK UTAMA: Kotak VR yang posisinya terkunci di ruang virtual -->
+    <!-- Ukurannya akan diubah secara dinamis oleh JavaScript di bawah -->
+    <a-box id="vr-target" 
+           position="0 1.6 -2.5" 
+           rotation="0 45 45" 
+           width="0.8" height="0.8" depth="0.8"
+           material="color: #ff0055; opacity: 0.8; wireframe: false;"
+           animation="property: rotation; to: 0 360 360; loop: true; dur: 8000">
+    </a-box>
+
+    <!-- Menambahkan lantai kisi-kisi (grid) digital agar efek gerak maju/mundur lebih terasa nyata -->
+    <a-grid material="color: #00ffcc; opacity: 0.2;"></a-grid>
+
+  </a-scene>
 
   <script>
     const video = document.getElementById('hidden-video');
     const canvas = document.getElementById('analyzer-canvas');
     const ctx = canvas.getContext('2d');
-    
-    const anchorLeft = document.getElementById('anchor-left');
-    const anchorRight = document.getElementById('anchor-right');
-    const depthTexts = document.querySelectorAll('.depth-val');
-    const dirTextL = document.getElementById('dir-val');
-    const dirTextR = document.getElementById('dir-val-r');
+    const vrTarget = document.getElementById('vr-target');
 
     let baseBrightness = null;
     let currentScale = 1.0;
-    let currentAlpha = 0;
-    let currentBeta = 0;
 
-    // 1. Hidupkan Kamera Belakang
-    navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" } } })
+    // 1. Mengaktifkan sensor kamera belakang HP
+    navigator.mediaDevices.getUserMedia({ 
+      audio: false, 
+      video: { facingMode: { ideal: "environment" } } 
+    })
     .then(stream => { video.srcObject = stream; })
-    .catch(() => { alert("Izin kamera diperlukan untuk sensor 6DoF."); });
+    .catch(() => { alert("Akses kamera belakang diperlukan sebagai sensor 6DoF."); });
 
-    // 2. Ambil data Gyroscope
-    window.addEventListener('deviceorientation', (event) => {
-      if (event.alpha !== null && event.beta !== null) {
-        currentAlpha = event.alpha;
-        currentBeta = event.beta;
-      }
-    }, true);
-
-    // 3. Loop Analisis Gerak (60 FPS) dengan Logika Maju-Mundur Konvensional
+    // 2. Loop AI Pengolah Skala 6DoF (60 FPS)
     setInterval(() => {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -114,47 +64,26 @@
         }
         let avgBrightness = totalBrightness / (data.length / 4);
         
-        // Menentukan kecerahan awal saat pertama kali aplikasi dimuat
-        if (baseBrightness === null) {
-          baseBrightness = avgBrightness;
-        }
+        if (baseBrightness === null) { baseBrightness = avgBrightness; }
 
-        // --- LOGIKA DETEKSI 6DOF DUA ARAH STABIL ---
-        // Kita hitung selisih dari nilai dasar (bukan nilai frame sebelumnya)
+        // Hitung selisih cahaya untuk mendeteksi maju / mundur
         let delta = avgBrightness - baseBrightness;
 
         if (delta > 2) {
-          // Mendeteksi gerakan MAJU (Kamera menangkap lebih banyak cahaya/benda mendekat)
-          currentScale += 0.02;
-          dirTextL.innerText = "MOVING_FORWARD";
-          dirTextR.innerText = "MOVING_FORWARD";
+          currentScale += 0.03; // Respons maju lebih cepat
         } else if (delta < -2) {
-          // Mendeteksi gerakan MUNDUR (Kamera menjauh dari objek)
-          currentScale -= 0.02;
-          dirTextL.innerText = "MOVING_BACKWARD";
-          dirTextR.innerText = "MOVING_BACKWARD";
+          currentScale -= 0.03; // Respons mundur
         } else {
-          // Posisi Diam / Stabil, kita kembalikan skala perlahan ke posisi normal (1.0) demi kenyamanan mata
+          // Sistem stabilisasi otomatis: kembalikan ke skala normal (1.0) jika Anda diam
           currentScale += (1.0 - currentScale) * 0.05;
-          dirTextL.innerText = "STABLE";
-          dirTextR.innerText = "STABLE";
         }
 
-        // Batasi skala agar objek tidak terlalu besar dan tidak mengecil sampai hilang (0)
-        currentScale = Math.max(0.6, Math.min(1.8, currentScale));
-        depthTexts.forEach(t => t.innerText = currentScale.toFixed(2));
+        // KUNCI ANTI-HILANG: Batasi skala terkecil di 0.5 dan terbesar di 2.0
+        currentScale = Math.max(0.5, Math.min(2.0, currentScale));
+
+        // Terapkan skala baru ke objek A-Frame (format pengisian: X Y Z)
+        vrTarget.setAttribute('scale', `${currentScale} ${currentScale} ${currentScale}`);
       }
-
-      // Hitung koordinat kunci ruangGyroscope
-      let xLock = -(currentAlpha * 2.5); 
-      let yLock = ((currentBeta - 45) * 2.5);
-
-      // Terapkan matriks transformasi 3D yang sudah distabilkan
-      const transformMatrix = `translate3d(${xLock}px, ${yLock}px, 0px) scale3d(${currentScale}, ${currentScale}, ${currentScale}) rotateX(${currentBeta}deg) rotateY(${xLock}deg)`;
-      
-      anchorLeft.style.transform = transformMatrix;
-      anchorRight.style.transform = transformMatrix;
-
     }, 1000 / 60);
   </script>
 </body>
